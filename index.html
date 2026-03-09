@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>My Pay Agent</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0D9488">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="My Pay Agent">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    <meta name="description" content="Your trusted companion for seamless financial tracking">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+    <!-- PWA Install Banner -->
+    <div id="pwa-install-banner" style="display:none; position:fixed; bottom:0; left:0; right:0; background:linear-gradient(135deg, #0F172A, #0D9488); color:white; padding:16px; z-index:9999; text-align:center; box-shadow:0 -4px 20px rgba(0,0,0,0.3);">
+        <p style="margin:0 0 10px; font-weight:600;">📱 My Pay Agent ကို Install လုပ်ပါ!</p>
+        <p style="margin:0 0 12px; font-size:0.85rem; opacity:0.9;">Home screen မှာ app အဖြစ် အသုံးပြုနိုင်ပါတယ်</p>
+        <button id="pwa-install-btn" style="background:white; color:#0D9488; border:none; padding:10px 24px; border-radius:8px; font-weight:700; cursor:pointer; margin-right:8px;">⬇️ Install</button>
+        <button id="pwa-dismiss-btn" onclick="document.getElementById('pwa-install-banner').style.display='none'" style="background:transparent; color:white; border:1px solid rgba(255,255,255,0.3); padding:10px 16px; border-radius:8px; cursor:pointer;">ပိတ်ပါ</button>
+    </div>
+
+    <!-- Auth Overlay -->
+    <div id="auth-overlay">
+        <div class="auth-title">My Pay Agent</div>
+        <div class="auth-container">
+            <div id="auth-login-form">
+                <h2>🔐 အကောင့်ဝင်ပါ</h2>
+                <div id="auth-error" class="auth-error"></div>
+                <input type="email" id="auth-email" class="auth-input" placeholder="Email ထည့်ပါ">
+                <input type="password" id="auth-password" class="auth-input" placeholder="Password ထည့်ပါ">
+                <button class="auth-btn" onclick="handleLogin()">🔑 Login</button>
+                <div class="auth-toggle" onclick="toggleAuthForm()">အကောင့်မရှိဘူးလား? <span>Sign Up</span></div>
+            </div>
+            <div id="auth-signup-form" style="display:none;">
+                <h2>📝 အကောင့်အသစ်ဖွင့်ပါ</h2>
+                <div id="auth-signup-error" class="auth-error"></div>
+                <input type="email" id="signup-email" class="auth-input" placeholder="Email ထည့်ပါ">
+                <input type="password" id="signup-password" class="auth-input" placeholder="Password ထည့်ပါ (အနည်းဆုံး ၆ လုံး)">
+                <input type="password" id="signup-confirm-password" class="auth-input" placeholder="Password ထပ်ရိုက်ပါ">
+                <button class="auth-btn" onclick="handleSignup()">✅ Sign Up</button>
+                <div class="auth-toggle" onclick="toggleAuthForm()">အကောင့်ရှိပြီးသားလား? <span>Login</span></div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Lock Screen Overlay -->
+    <div id="lock-screen-overlay">
+        <div id="lock-screen-content">
+            <div id="lock-screen-title" data-i18n="my_pay_agent">My Pay Agent</div>
+            <div id="lock-screen-message" data-i18n="lock_screen_message">Your application has been locked due to inactivity.</div>
+            <input type="password" id="lock-screen-pin-input" maxlength="4" readonly placeholder="----">
+            <div id="lock-screen-error-message"></div>
+            <div id="lock-screen-keyboard">
+                <div class="key-row">
+                    <button onclick="handleLockScreenInput('1')">1</button>
+                    <button onclick="handleLockScreenInput('2')">2</button>
+                    <button onclick="handleLockScreenInput('3')">3</button>
+                </div>
+                <div class="key-row">
+                    <button onclick="handleLockScreenInput('4')">4</button>
+                    <button onclick="handleLockScreenInput('5')">5</button>
+                    <button onclick="handleLockScreenInput('6')">6</button>
+                </div>
+                <div class="key-row">
+                    <button onclick="handleLockScreenInput('7')">7</button>
+                    <button onclick="handleLockScreenInput('8')">8</button>
+                    <button onclick="handleLockScreenInput('9')">9</button>
+                </div>
+                <div class="key-row">
+                    <button onclick="handleLockScreenInput('0')">0</button>
+                </div>
+                <div class="key-row">
+                    <button onclick="handleLockScreenInput('delete')" class="key-delete"><i class="fas fa-backspace"></i></button>
+                </div>
+            </div>
+            <div id="lock-screen-footer" data-i18n="mkt_computer_mobile_services">MKT Computer & Mobile Services</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1 data-i18n="my_pay_agent">My Pay Agent</h1>
+            <p data-i18n="trusted_companion">Your trusted companion for seamless financial tracking</p>
+            <div class="header-user-info">
+                <span id="user-email-display"></span>
+                <button class="logout-btn" onclick="handleLogout()">🚪 Logout</button>
+            </div>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="tabs-container">
+            <div class="tab" onclick="switchTab('opening')" data-i18n="opening">Opening</div>
+            <div class="tab" onclick="switchTab('transaction')" data-i18n="transactions">Transactions</div>
+            <div class="tab" onclick="switchTab('daily-money')" data-i18n="daily_money">Daily Money</div>
+        </div>
+
+        <div class="tabs-container-bottom">
+            <div class="tab" onclick="switchTab('expense')" data-i18n="expenses">Expenses</div>
+            <div class="tab" onclick="switchTab('debt')" data-i18n="debts_credits">Debts/Credits</div>
+        </div>
+
+       <!-- Initial View with Charts -->
+        <div id="initial-charts-view" class="tab-content active"> <!-- Initially active -->
+            <!-- Transaction Charts -->
+            <div class="charts-container">
+                <div class="chart-wrapper">
+                    <h3 data-i18n="transaction_type_distribution">Transaction Type Distribution</h3>
+                    <canvas id="transaction-type-chart"></canvas>
+                </div>
+                <div class="chart-wrapper">
+                    <h3 data-i18n="transaction_action_distribution">Transaction Action Distribution</h3>
+                    <canvas id="transaction-action-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Daily Money Charts -->
+            <div class="charts-container">
+                <div class="chart-wrapper">
+                    <h3 data-i18n="daily_money_flow_actions">Daily Money Flow Actions</h3>
+                    <canvas id="money-flow-action-chart"></canvas>
+                </div>
+                <div class="chart-wrapper">
+                    <h3 data-i18n="daily_money_flow_types">Daily Money Flow Types</h3>
+                    <canvas id="money-flow-type-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Expense Charts -->
+            <div class="charts-container">
+                <div class="chart-wrapper">
+                    <h3 data-i18n="expense_category_distribution">Expense Category Distribution</h3>
+                    <canvas id="expense-category-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Debts/Credits Chart -->
+            <div class="charts-container">
+                <div class="chart-wrapper">
+                    <h3 data-i18n="debts_credits_chart">Debts/Credits Overview</h3>
+                    <canvas id="debts-credits-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Charts Filter Section -->
+            <div id="charts-filter-section">
+                <label for="charts-period-select" data-i18n="select_period">Select Period:</label>
+                <select id="charts-period-select" onchange="updateChartsWithFilter()">
+                    <option value="daily" selected data-i18n="daily">Daily</option>
+                    <option value="weekly" data-i18n="weekly">Weekly</option>
+                    <option value="monthly" data-i18n="monthly">Monthly</option>
+                    <option value="yearly" data-i18n="yearly">Yearly</option>
+                </select>
+            </div>
+
+        </div>
+
+        <!-- Opening Tab Content -->
+        <div id="opening" class="tab-content">
+            <div class="form-section">
+                <h2 data-i18n="set_opening_balances">Set Opening Balances</h2>
+                <div class="form-group">
+                    <label for="opening-date" data-i18n="date">Date</label>
+                    <input type="date" id="opening-date">
+                </div>
+                <div class="form-group">
+                    <label for="opening-emoney" data-i18n="e_money_balance_balance">E-Money Balance</label>
+                    <input type="text" id="opening-emoney" data-i18n-placeholder="enter_e_money_amount" placeholder="Enter E-Money amount" oninput="formatInputAmount(this)">
+                </div>
+                <div class="form-group">
+                    <label for="opening-cash" data-i18n="cash_balance">Cash Balance</label>
+                    <input type="text" id="opening-cash" data-i18n-placeholder="enter_cash_amount" placeholder="Enter Cash amount" oninput="formatInputAmount(this)">
+                </div>
+                <button onclick="saveOpeningBalances()" data-i18n="save_opening_balances">Save Opening Balances</button>
+            </div>
+
+            <!-- Reminders Section (Moved under Set Opening Balances) -->
+            <div id="reminders-section">
+                <h3 data-i18n="reminders_alerts">Reminders & Alerts</h3>
+                <div class="reminder-form">
+                    <input type="text" id="reminder-description" data-i18n-placeholder="reminder_description" placeholder="Enter reminder description (e.g., Pay bill)">
+                    <input type="date" id="reminder-due-date">
+                    <button onclick="addReminder()"><i class="fas fa-plus-circle"></i> <span data-i18n="add_reminder">Add Reminder</span></button>
+                </div>
+                <div class="reminder-list" id="reminder-list">
+                    <!-- Reminders will be added dynamically here -->
+                </div>
+            </div>
+
+            <!-- Backup & Restore Section -->
+            <div class="backup-section">
+                <h2 data-i18n="data_backup_restore">Data Backup & Restore</h2>
+                <textarea class="backup-textarea" id="backup-data" data-i18n-placeholder="backup_data_placeholder" placeholder="Your backup data will appear here..."></textarea>
+
+                <div class="button-group">
+                    <button onclick="generateBackup()" class="secondary"><i class="fas fa-download"></i> <span data-i18n="generate_backup">Generate Backup</span></button>
+                    <button onclick="restoreBackup()" class="secondary"><i class="fas fa-upload"></i> <span data-i18n="restore">Restore</span></button>
+                </div>
+
+                <div class="button-group" style="margin-top: 15px;">
+                    <button onclick="generateBackupFile()" class="secondary"><i class="fas fa-file-export"></i> <span data-i18n="export_file">Export File</span></button>
+                    <button class="secondary" onclick="document.getElementById('backup-file-input').click()"><i class="fas fa-file-import"></i> <span data-i18n="import_file">Import File</span></button>
+                </div>
+
+                <input type="file" id="backup-file-input" accept=".json" style="display: none;" onchange="restoreFromFile(event)">
+            </div>
+
+            <!-- Export Data Section -->
+            <div class="form-section">
+                <h2 data-i18n="export_your_data">Export Your Data</h2>
+                <div class="export-buttons-container">
+                    <button class="export-button" onclick="exportToExcel()">
+                        <i class="fas fa-file-excel"></i> <span data-i18n="export_to_excel">Export to Excel</span>
+                    </button>
+                    <button class="export-button" onclick="exportToPDF()">
+                        <i class="fas fa-file-pdf"></i> <span data-i18n="export_to_pdf">Export to PDF</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Security and Appearance Settings Section -->
+            <div class="form-section">
+                <div id="settings-lock-section">
+                    <h3 data-i18n="security_settings">Security Settings</h3>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="enable-screen-lock" onchange="saveLockSetting()" style="width: 18px; height: 18px;">
+                            <label for="enable-screen-lock" style="margin-bottom: 0;" data-i18n="enable_screen_lock">Enable Screen Lock</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="current-pin" data-i18n="current_pin">Current PIN:</label>
+                        <input type="password" id="current-pin" data-i18n-placeholder="enter_current_pin" placeholder="လက်ရှိ PIN ထည့်ပါ" maxlength="4">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-pin" data-i18n="new_pin">New PIN:</label>
+                        <input type="password" id="new-pin" data-i18n-placeholder="enter_new_pin" placeholder="၄ ဂဏန်း PIN အသစ်ထည့်ပါ" maxlength="4">
+                    </div>
+                    <div class="form-group">
+                        <label for="confirm-new-pin" data-i18n="confirm_new_pin">Confirm New PIN:</label>
+                        <input type="password" id="confirm-new-pin" data-i18n-placeholder="confirm_new_pin" placeholder="Confirm new PIN" maxlength="4">
+                    </div>
+                    <button onclick="handleChangePIN()" data-i18n="change_pin">Change PIN</button>
+                    <div style="margin-top: 15px; font-size: 0.8rem; color: var(--text-light);">
+                        <i class="fas fa-info-circle"></i> <span data-i18n="pin_forget_note">Note: If you forget your PIN, all application data will be wiped.</span>
+                    </div>
+                </div>
+
+                <!-- Appearance Section -->
+                <div id="settings-appearance-section">
+                    <h3 data-i18n="appearance">Appearance</h3>
+                    <button id="appearance-dark-mode-button" onclick="toggleDarkMode()">
+                        <i class="fas fa-moon"></i> <span data-i18n="dark_mode">Dark Mode</span>
+                    </button>
+                    <button id="appearance-language-button" onclick="toggleLanguage()">
+                        <i class="fas fa-language"></i> <span data-i18n="language">Language</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transaction Tab Content -->
+        <div id="transaction" class="tab-content">
+            <div class="card-container">
+                <div class="card">
+                    <h3 data-i18n="e_money_balance">E-Money Balance</h3>
+                    <div class="card-amount" id="e-money-balance">0.00</div>
+                </div>
+                <div class="card">
+                    <h3 data-i18n="cash_balance">Cash Balance</h3>
+                    <div class="card-amount" id="cash-balance">0.00</div>
+                </div>
+                <div class="card">
+                    <h3 data-i18n="total_balance">စုစုပေါင်း လက်ကျန်</h3>
+                    <div class="card-amount" id="total-balance">0.00</div>
+                </div>
+                <div class="card">
+                    <h3 data-i18n="profit">စုစုပေါင်း အမြတ်</h3>
+                    <div class="card-amount" id="profit">0.00</div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2 data-i18n="add_new_transaction">Add New Transaction</h2>
+                <div class="form-group">
+                    <label for="transaction-id" data-i18n="transaction_id">Transaction ID</label>
+                    <input type="text" id="transaction-id" data-i18n-placeholder="enter_transaction_id" placeholder="ထူးခြားသော ငွေလွှဲမှု ID ထည့်ပါ">
+                </div>
+                <div class="form-group">
+                    <label for="transaction-date" data-i18n="date_time">Date/Time</label>
+                    <input type="datetime-local" id="transaction-date">
+                </div>
+                <div class="form-group">
+                    <label for="transaction-type" data-i18n="transaction_type">Transaction Type</label>
+                    <select id="transaction-type" onchange="updateTransactionType(); updateSavedCommissionAndFee();">
+                        <option value="Wave Money" data-i18n="wave_money">Wave Money</option>
+                        <option value="Wave Pay" data-i18n="wave_pay">Wave Pay</option>
+                        <option value="KBZ Pay" data-i18n="kbz_pay">KBZ Pay</option>
+                        <option value="Aya Pay" data-i18n="aya_pay">Aya Pay</option>
+                        <option value="other" data-i18n="other">Other (Manual)</option>
+                    </select>
+                    <input type="text" id="transaction-type-other" style="display: none; margin-top: 10px;" data-i18n-placeholder="specify_other_type" placeholder="Specify other type">
+                    <button type="button" class="secondary" style="width: auto; margin-top: 10px; padding: 8px 12px; font-size: 0.8rem;" onclick="removeCustomTransactionType()" data-i18n="remove_custom_type">Remove Custom Type</button>
+                </div>
+                <div class="form-group">
+                    <label for="transaction-action" data-i18n="action">Action</label>
+                    <select id="transaction-action" onchange="updateSavedCommissionAndFee();">
+                        <option value="Cash In" data-i18n="cash_in">Cash In</option>
+                        <option value="Cash Out" data-i18n="cash_out">Cash Out</option>
+                        <option value="Send Money" data-i18n="send_money">Send Money</option>
+                        <option value="Received Money" data-i18n="received_money">Received Money</option>
+                        <option value="Payment" data-i18n="payment">Payment</option>
+                        <option value="Phone Bill" data-i18n="phone_bill">Phone Bill</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="transaction-amount" data-i18n="amount">Amount</label>
+                    <input type="text" id="transaction-amount" data-i18n-placeholder="enter_amount" placeholder="Enter amount" oninput="updateSavedCommissionAndFee(); formatInputAmount(this);">
+                </div>
+                <div class="form-group">
+                    <label for="transaction-commission" data-i18n="commission">Commission</label>
+                    <input type="text" id="transaction-commission" data-i18n-placeholder="commission" placeholder="Commission" oninput="saveFeeTemporarily(); formatInputAmount(this);">
+                </div>
+                <div class="form-group">
+                    <label for="transaction-fee" data-i18n="fee">Fee</label>
+                    <input type="text" id="transaction-fee" data-i18n-placeholder="enter_fee" placeholder="Enter fee" oninput="saveFeeTemporarily(); formatInputAmount(this);">
+                </div>
+                <div class="form-group phone-input">
+                    <label for="transaction-phone" data-i18n="phone_number">Phone Number</label>
+                    <input type="text" id="transaction-phone" data-i18n-placeholder="phone_example" placeholder="0912345678">
+                </div>
+                <div class="form-group">
+                    <label for="transaction-note" data-i18n="note">Note</label>
+                    <input type="text" id="transaction-note" data-i18n-placeholder="optional_note" placeholder="Optional: customer name, details">
+                </div>
+                <div class="button-group">
+                    <button type="button" onclick="addTransaction()"><i class="fas fa-plus-circle"></i> <span data-i18n="add_transaction">Add Transaction</span></button>
+                    <button onclick="cancelEditTransaction()" class="secondary"><i class="fas fa-ban"></i> <span data-i18n="cancel">Cancel</span></button>
+                </div>
+            </div>
+
+            <!-- Transaction Filters -->
+            <div class="filter-section">
+                <select id="transaction-filter-type">
+                    <option value="all" data-i18n="all_types">All Types</option>
+                    <option value="Wave Money" data-i18n="wave_money">Wave Money</option>
+                    <option value="Wave Pay" data-i18n="wave_pay">Wave Pay</option>
+                    <option value="KBZ Pay" data-i18n="kbz_pay">KBZ Pay</option>
+                    <option value="Aya Pay" data-i18n="aya_pay">Aya Pay</option>
+                </select>
+                <select id="transaction-filter-action">
+                    <option value="all" data-i18n="all_actions">All Actions</option>
+                    <option value="Cash In" data-i18n="cash_in">Cash In</option>
+                    <option value="Cash Out" data-i18n="cash_out">Cash Out</option>
+                    <option value="Send Money" data-i18n="send_money">Send Money</option>
+                    <option value="Received Money" data-i18n="received_money">Received Money</option>
+                    <option value="Payment" data-i18n="payment">Payment</option>
+                    <option value="Phone Bill" data-i18n="phone_bill">Phone Bill</option>
+                </select>
+                <input type="date" id="transaction-filter-date" onchange="filterTransactions()">
+                <button onclick="filterTransactions()"><i class="fas fa-filter"></i> <span data-i18n="filter">Filter</span></button>
+                <button onclick="resetTransactionFilters()" class="secondary"><i class="fas fa-times"></i> <span data-i18n="reset">Reset</span></button>
+            </div>
+
+            <!-- Transaction List -->
+            <div class="transaction-list" id="transaction-list">
+                <h2 onclick="toggleExpand(this.parentElement)" data-i18n="transaction_history">Transaction History <span class="arrow"><i class="fas fa-chevron-down"></i></span></h2>
+                <div class="transaction-list-items">
+                    <!-- Transactions will be added here dynamically -->
+                </div>
+            </div>
+
+            <!-- Daily Summary for Transactions -->
+            <div class="summary-section expanded">
+                <h2 onclick="toggleExpand(this.parentElement)" data-i18n="daily_summary">Daily Summary <span class="arrow"><i class="fas fa-chevron-down"></i></span></h2>
+                <div class="summary-list">
+                    <div class="summary-item">
+                        <span class="summary-label" data-i18n="e_money_balance_today_in">E-Money Balance (Today) [IN]:</span>
+                        <span id="daily-e-money" class="positive">0.00</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label" data-i18n="cash_balance_today_in">Cash Balance (Today) [IN]:</span>
+                        <span id="daily-cash" class="positive">0.00</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label" data-i18n="total_commission_earned_today">Total Commission Earned (Today):</span>
+                        <span id="total-commission-summary" class="positive">0.00</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label" data-i18n="total_fees_charged_today">Total Fees Charged (Today):</span>
+                        <span id="total-fee-summary" class="positive">0.00</span>
+                    </div>
+                    <div class="summary-item">
+                    	<span class="summary-label" data-i18n="net_balance_change_today">Net Balance Change (Today):</span>
+                        <span id="daily-net-balance" class="positive">0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Daily Money Tab Content -->
+        <div id="daily-money" class="tab-content">
+            <div class="form-section">
+                <h2 data-i18n="record_daily_money_flow">Record Daily Money Flow</h2>
+                <div class="form-group">
+                    <label for="money-date" data-i18n="date_time">Date/Time</label>
+                    <input type="datetime-local" id="money-date">
+                </div>
+                <div class="form-group">
+                    <label for="money-amount" data-i18n="amount">Amount</label>
+                    <input type="text" id="money-amount" data-i18n-placeholder="enter_amount" placeholder="Enter amount" oninput="calculateMoneyCommission(); formatInputAmount(this);">
+                </div>
+                <div class="form-group">
+                    <label for="money-action" data-i18n="action">Action</label>
+                    <select id="money-action" onchange="toggleCommissionField(); calculateMoneyCommission()">
+                        <option value="Emoney In" data-i18n="emoney_in">E-Money In</option>
+                        <option value="Emoney Out" data-i18n="emoney_out">E-Money Out</option>
+                        <option value="Cash In" data-i18n="cash_in">ငွေသား အဝင်</option>
+                        <option value="Cash Out" data-i18n="cash_out">ငွေသား အထွက်</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="money-type" data-i18n="type">Type</label>
+                    <select id="money-type" onchange="updateMoneyType()">
+                        <option value="Wave Money" data-i18n="wave_money">Wave Money</option>
+                        <option value="KBZ Pay" data-i18n="kbz_pay">KBZ Pay</option>
+                        <option value="Aya Pay" data-i18n="aya_pay">Aya Pay</option>
+                        <option value="other" data-i18n="other">Other (Manual)</option>
+                    </select>
+                    <input type="text" id="money-type-other" style="display: none; margin-top: 10px;" data-i18n-placeholder="specify_other_type" placeholder="Specify other type">
+                    <button type="button" class="secondary" style="width: auto; margin-top: 10px; padding: 8px 12px; font-size: 0.8rem;" onclick="removeCustomMoneyType()" data-i18n="remove_custom_type">Remove Custom Type</button>
+                </div>
+                <div class="form-group" id="money-commission-group" style="display: none;">
+                    <label for="money-commission" data-i18n="commission_percentage">Commission (%)</label>
+                    <input type="text" id="money-commission" data-i18n-placeholder="enter_commission_percentage" placeholder="Enter commission percentage" oninput="calculateMoneyCommission(); formatInputAmount(this);">
+                </div>
+                <div class="form-group">
+                    <label for="money-note" data-i18n="note">Note</label>
+                    <input type="text" id="money-note" data-i18n-placeholder="optional_money_note" placeholder="Optional: source of funds, purpose">
+                </div>
+                <div class="button-group">
+                    <button onclick="addMoneyRecord()"><i class="fas fa-plus-circle"></i> <span data-i18n="add_record">Add Record</span></button>
+                    <button onclick="cancelEditMoneyRecord()" class="secondary"><i class="fas fa-ban"></i> <span data-i18n="cancel">Cancel</span></button>
+                </div>
+            </div>
+
+            <!-- Money Record Filters -->
+            <div class="filter-section">
+                <select id="money-filter-action">
+                    <option value="all" data-i18n="all_actions">All Actions</option>
+                    <option value="Emoney In" data-i18n="emoney_in">E-Money In</option>
+                    <option value="Emoney Out" data-i18n="emoney_out">E-Money Out</option>
+                    <option value="Cash In" data-i18n="cash_in">ငွေသား အဝင်</option>
+                    <option value="Cash Out" data-i18n="cash_out">ငွေသား အထွက်</option>
+                </select>
+                <input type="date" id="money-filter-date" onchange="filterMoneyRecords()">
+                <button onclick="filterMoneyRecords()"><i class="fas fa-filter"></i> <span data-i18n="filter">Filter</span></button>
+                <button onclick="resetMoneyFilters()" class="secondary"><i class="fas fa-times"></i> <span data-i18n="reset">Reset</span></button>
+            </div>
+
+            <!-- Money Records List -->
+            <div class="transaction-list" id="money-list">
+                <h2 onclick="toggleExpand(this.parentElement)" data-i18n="money_records_flow">Money Records Flow <span class="arrow"><i class="fas fa-chevron-down"></i></span></h2>
+                <div class="transaction-list-items">
+                    <!-- Records will be added here dynamically -->
+                </div>
+            </div>
+
+            <!-- Daily Summary for Money Records -->
+            <div class="summary-section expanded">
+                 <h2 onclick="toggleExpand(this.parentElement)" data-i18n="daily_summary">Daily Summary <span class="arrow"><i class="fas fa-chevron-down"></i></span></h2>
+                <div class="summary-list">
+                    <div class="summary-item">
+                        <span class="summary-label" data-i18n="e_money_in">E-Money In:</span>
+                        <span id="daily-emoney-in" class="positive">0.00</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label" data-i18n="e_money_out">E-Money Out:</span>
+                        <span id="daily-emoney-out" class="negative">0.00</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label" data-i18n="cash_in">ငွေသား အဝင်:</span>
+                        <span id="daily-cash-in" class="positive">0.00</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label" data-i18n="cash_out">ငွေသား အထွက်:</span>
+                        <span id="daily-cash-out" class="negative">0.00</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label" data-i18n="e_money_cash_today_in">E-Money+ Cash (Today) [IN]:</span>
+                        <span id="daily-emoney-cash-in" class="positive">0.00</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label" data-i18n="net_balance_today">Net Balance (Today):</span>
+                        <span id="daily-remaining" class="positive">0.00</span>
+                    </div>
+                    <div class="summary-item" id="daily-money-commission-item" style="display: none;">
+                        <span class="summary-label" data-i18n="commission_earned">Commission Earned:</span>
+                        <span id="daily-money-commission" class="positive">0.00</span>
+                    </div>
+                    <!-- NEW: Total Amount (Today) -->
+                    <div class="summary-item">
+                        <span class="summary-label" data-i18n="total_amount_flow_today">Total Amount Flow (Today):</span>
+                        <span id="daily-total-flow" class="positive">0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- EXPENSE TAB Content -->
+        <div id="expense" class="tab-content">
+            <div class="form-section">
+                <h2 data-i18n="add_new_expense_income_entry">Add New Expense/Income Entry</h2>
+                <div class="form-group">
+                    <label for="expense-date" data-i18n="date_time">Date/Time</label>
+                    <input type="datetime-local" id="expense-date">
+                </div>
+                <div class="form-group">
+                    <label for="expense-type" data-i18n="type">Type</label>
+                    <select id="expense-type" onchange="updateExpenseCategoryVisibility()">
+                        <option value="Expense" data-i18n="expense">Expense</option>
+                        <option value="Income" data-i18n="income">Income</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="expense-category" data-i18n="category">Category</label>
+                    <select id="expense-category" onchange="updateExpenseCategoryVisibility()">
+                        <option value="Rent" data-i18n="rent">Rent</option>
+                        <option value="Sales" data-i18n="sales">Sales</option>
+                        <option value="other" data-i18n="other">Other (Manual)</option>
+                    </select>
+                    <input type="text" id="expense-category-other" style="display: none; margin-top: 10px;" data-i18n-placeholder="specify_other_category" placeholder="Specify other category">
+                    <button type="button" class="secondary" style="width: auto; margin-top: 10px; padding: 8px 12px; font-size: 0.8rem;" onclick="removeCustomExpenseCategory()" data-i18n="remove_custom_category">Remove Custom Category</button>
+                </div>
+                <div class="form-group">
+                    <label for="expense-amount" data-i18n="amount">Amount</label>
+                    <input type="text" id="expense-amount" data-i18n-placeholder="enter_amount" placeholder="Enter amount" oninput="formatInputAmount(this)">
+                </div>
+                <div class="form-group">
+                    <label for="expense-payment-method" data-i18n="payment_method">Payment Method</label>
+                    <select id="expense-payment-method" onchange="updatePaymentMethodVisibility()">
+                        <option value="E-Money" data-i18n="e_money">E-Money</option>
+                        <option value="Cash" data-i18n="cash">Cash</option>
+                        <option value="Other" data-i18n="other">Other</option>
+                    </select>
+                    <input type="text" id="expense-payment-method-other" style="display: none; margin-top: 10px;" data-i18n-placeholder="specify_other_method" placeholder="Specify other method">
+                    <button type="button" class="secondary" style="width: auto; margin-top: 10px; padding: 8px 12px; font-size: 0.8rem;" onclick="removeCustomPaymentMethod()" data-i18n="remove_custom_method">Remove Custom Method</button>
+                </div>
+                <div class="form-group">
+                    <label for="expense-note" data-i18n="note">Note</label>
+                    <input type="text" id="expense-note" data-i18n-placeholder="optional_expense_note" placeholder="Optional: purpose of expense, source of income">
+                </div>
+                <div class="button-group">
+                    <button type="button" onclick="addExpenseEntry()"><i class="fas fa-plus-circle"></i> <span data-i18n="add_entry">Add Entry</span></button>
+                    <button onclick="cancelEditExpenseEntry()" class="secondary"><i class="fas fa-ban"></i> <span data-i18n="cancel">Cancel</span></button>
+                </div>
+            </div>
+
+            <!-- Expense Filters -->
+            <div class="filter-section">
+                <select id="expense-filter-type">
+                    <option value="all" data-i18n="all_types">All Types</option>
+                    <option value="Expense" data-i18n="expense">Expense</option>
+                    <option value="Income" data-i18n="income">Income</option>
+                </select>
+                <input type="text" id="expense-filter-category" data-i18n-placeholder="filter_by_category" placeholder="Filter by Category">
+                <input type="date" id="expense-filter-date" onchange="filterExpenses()">
+                <button onclick="filterExpenses()"><i class="fas fa-filter"></i> <span data-i18n="filter">Filter</span></button>
+                <button onclick="resetExpenseFilters()" class="secondary"><i class="fas fa-times"></i> <span data-i18n="reset">Reset</span></button>
+            </div>
+
+            <!-- Expense List -->
+            <div class="transaction-list" id="expense-list">
+                <h2 onclick="toggleExpand(this.parentElement)" data-i18n="expense_income_records">Expense/Income Records <span class="arrow"><i class="fas fa-chevron-down"></i></span></h2>
+                <div class="transaction-list-items">
+                    <!-- Expense entries will be added here -->
+                </div>
+            </div>
+
+            <!-- Daily Summary for Expenses -->
+            <div class="summary-section expanded">
+                <h2 onclick="updateExpenseSummaries(); toggleExpand(this.parentElement)" data-i18n="daily_summary">Daily Summary <span class="arrow"><i class="fas fa-chevron-down"></i></span></h2>
+                <div class="summary-list">
+                    <div class="summary-item">
+                        <span class="summary-label" data-i18n="total_income_today">Total Income (Today):</span>
+                        <span id="daily-total-income" class="positive">0.00</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label" data-i18n="total_expenses_today">Total Expenses (Today):</span>
+                        <span id="daily-total-expenses" class="negative">0.00</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label" data-i18n="net_balance_today">Net Balance (Today):</span>
+                        <span id="expense-daily-net-balance" class="positive">0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Periodical Summary for Expenses -->
+            <div class="summary-section expanded">
+                <h2 onclick="updatePeriodicalExpenseSummaries(); toggleExpand(this.parentElement)" data-i18n="periodical_summaries">Periodical Summaries <span class="arrow"><i class="fas fa-chevron-down"></i></span></h2>
+                <div class="summary-list">
+                    <div class="form-group">
+                        <label for="period-type" data-i18n="select_period">Select Period:</label>
+                        <select id="period-type" onchange="updatePeriodicalExpenseSummaries()">
+                            <option value="week" data-i18n="this_week">This Week</option>
+                            <option value="month" data-i18n="this_month">This Month</option>
+                            <option value="year" data-i18n="this_year">This Year</option>
+                        </select>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label" data-i18n="total_income_period">Total Income (Period):</span>
+                        <span id="periodical-total-income" class="positive">0.00</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label" data-i18n="total_expenses_period">Total Expenses (Period):</span>
+                        <span id="periodical-total-expenses" class="negative">0.00</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label" data-i18n="net_balance_period">Net Balance (Period):</span>
+                        <span id="periodical-net-balance" class="positive">0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Debt/Credit Tab Content -->
+        <div id="debt" class="tab-content">
+            <div class="form-section debt-form-section">
+                <h2 data-i18n="add_new_debt_credit_entry">Add New Debt/Credit Entry</h2>
+                <div class="form-group" style="position: relative;">
+                    <label for="debt-name" data-i18n="name">Name</label>
+                    <select id="debt-name" onchange="updateDebtName()">
+                        <option value="other" data-i18n="other">Other (Manual)</option>
+                    </select>
+                    <input type="text" id="debt-name-other" style="display: none; margin-top: 10px;" data-i18n-placeholder="enter_persons_name" placeholder="Enter person's name" oninput="handleDebtNameInput(event)">
+                    <button type="button" class="secondary" style="width: auto; margin-top: 10px; padding: 8px 12px; font-size: 0.8rem; display: none;" onclick="removeCustomDebtName()" data-i18n="remove_custom_name">Remove Custom Name</button>
+                    <!-- Suggestions Dropdown -->
+                    <div id="debt-name-suggestions">
+                        <!-- Suggestions will be loaded here -->
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="debt-type" data-i18n="type">Type</label>
+                    <select id="debt-type" onchange="updateDebtFormVisibility()">
+                        <option value="payable" data-i18n="you_owe_payable">You Owe (Payable)</option>
+                        <option value="receivable" data-i18n="others_owe_you_receivable">Others Owe You (Receivable)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="debt-amount" data-i18n="amount">Amount</label>
+                    <input type="text" id="debt-amount" data-i18n-placeholder="enter_amount" placeholder="Enter amount" oninput="formatInputAmount(this)">
+                </div>
+                <div class="form-group">
+                    <label for="debt-date" data-i18n="date_time">Date/Time</label>
+                    <input type="datetime-local" id="debt-date">
+                </div>
+                <div class="form-group">
+                    <label for="debt-note" data-i18n="note">Note</label>
+                    <input type="text" id="debt-note" data-i18n-placeholder="optional_debt_note" placeholder="Optional: reason for debt, repayment terms">
+                </div>
+                <div class="button-group">
+                    <button id="add-update-debt-button" onclick="addOrUpdateDebtEntry()"><i class="fas fa-save"></i> <span data-i18n="add_debt_credit">Add Debt/Credit</span></button>
+                    <button onclick="cancelEditDebtEntry()" class="secondary"><i class="fas fa-ban"></i> <span data-i18n="cancel">Cancel</span></button>
+                </div>
+            </div>
+
+            <!-- Debt Filter -->
+            <div class="filter-section">
+                <input type="text" id="debt-filter-name" data-i18n-placeholder="search_by_name" placeholder="Search by Name..." style="min-width: 250px; flex-grow: 2;">
+                <button onclick="filterDebts()"><i class="fas fa-search"></i> <span data-i18n="search">Search</span></button>
+                <button onclick="resetDebtFilters()" class="secondary"><i class="fas fa-times"></i> <span data-i18n="reset">Reset</span></button>
+            </div>
+
+            <!-- Aggregated Debts/Credits List -->
+            <div class="transaction-list" id="debts-credits-list">
+                <h2 onclick="toggleExpand(this.parentElement)" data-i18n="debts_credits_history">Debts/Credits History <span class="arrow"><i class="fas fa-chevron-down"></i></span></h2>
+                <div class="transaction-list-items">
+                    <!-- Aggregated names will be added here dynamically -->
+                </div>
+            </div>
+
+            <!-- Debt/Credit Summary Totals -->
+            <div class="debt-summary-totals">
+                <div class="total-payable">
+                    <span class="label" data-i18n="total_payable">Total Payable:</span>
+                    <span class="amount" id="total-payable-amount">0.00</span>
+                </div>
+                <div class="total-receivable">
+                    <span class="label" data-i18n="total_receivable">Total Receivable:</span>
+                    <span class="amount" id="total-receivable-amount">0.00</span>
+                </div>
+                <div class="total-net">
+                    <span class="label" data-i18n="total_net_amount">Total Net Amount:</span>
+                    <span class="amount" id="total-net-amount">0.00</span>
+                </div>
+            </div>
+
+            <!-- Payable Debts List -->
+            <div class="transaction-list expanded" id="payable-debts-list">
+                <h2 onclick="toggleExpand(this.parentElement)" data-i18n="payable_debts">Payable Debts <span class="arrow"><i class="fas fa-chevron-down"></i></span></h2>
+                <div class="transaction-list-items">
+                    <!-- Payable debt items will be added here -->
+                </div>
+            </div>
+
+            <!-- Receivable Credits List -->
+            <div class="transaction-list expanded" id="receivable-debts-list">
+                <h2 onclick="toggleExpand(this.parentElement)" data-i18n="receivable_credits">Receivable Credits <span class="arrow"><i class="fas fa-chevron-down"></i></span></h2>
+                <div class="transaction-list-items">
+                    <!-- Receivable debt items will be added here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
